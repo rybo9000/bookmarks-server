@@ -96,7 +96,7 @@ app.post('/bookmarks', (req, res) => {
 
     bookmarks.push(bookmark);
 
-    res.status(201).location(`http://localhost:8000/card/${id}`)
+    res.status(201).location(`http://localhost:8000/card/${id}`).json(bookmark);
 })
 
 app.delete('/bookmarks/:id', (req, res) => {

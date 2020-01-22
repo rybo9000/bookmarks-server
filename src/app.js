@@ -3,9 +3,9 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
-const bookmarks = require('./bookmarks');
 const uuid = require('uuid/v4');
 const winston = require('winston');
+const bookmarksService = require('./bookmarks_service');
 const { NODE_ENV } = require('./config');
 
 const app = express();
@@ -53,68 +53,81 @@ app.get('/', (req, res) => {
 })
 
 app.get('/bookmarks', (req, res) => {
-    res.json(bookmarks);
+    const knexInstance = req.app.get('db');
+
+    bookmarksService.getBookmarks(knexInstance)
+        .then(bookmarks => {
+            res.json(bookmarks);
+        })
+    
 })
 
 app.get('/bookmarks/:id', (req, res) => {
     
     const { id } = req.params;
 
-    const result = bookmarks.find(bookmark => bookmark.id === Number(id));
-
-    if (result === undefined) {
-        logger.error(`ID ${id} not found`);
-        res.status(404).json({ error: "ID Not Found" });
-    }
-
-    res.json(result);
-})
-
-app.post('/bookmarks', (req, res) => {
+    const knexInstance = req.app.get('db');
     
-    const { title, url, desc, rating=3 } = req.body;
-
-    if (!title) {
-        return res.status(400).send('Title is required');
-    }
-    if (!url) {
-        return res.status(400).send('URL is required');
-    }
-    if (!desc) {
-        return res.status(400).send('Description is required');
-    }
-
-    const id = uuid();
-
-    const bookmark = {
-        id,
-        title,
-        url,
-        rating,
-        desc
-    }
-
-    bookmarks.push(bookmark);
-
-    res.status(201).location(`http://localhost:8000/card/${id}`).json(bookmark);
-})
-
-app.delete('/bookmarks/:id', (req, res) => {
+    bookmarksService.getById(knexInstance, id)
+        .then(bookmark => {
+            res.json(bookmark);
+        })
     
-    const { id } = req.params;
+    // const result = bookmarks.find(bookmark => bookmark.id === Number(id));
 
-    const bookmarkIndex = bookmarks.findIndex(bookmark => bookmark.id == id);
+    // if (result === undefined) {
+    //     logger.error(`ID ${id} not found`);
+    //     res.status(404).json({ error: "ID Not Found" });
+    // }
 
-    if (bookmarkIndex === -1) {
-        logger.error(`Bookmark ID ${id} not found for DELETE`);
-        return res.status(404).send('Bookmark Not Found');
-    }
-
-    bookmarks.splice(bookmarkIndex, 1);
-
-    res.status(204).end();
-
+    // res.json(result);
 })
+
+// app.post('/bookmarks', (req, res) => {
+    
+//     const { title, url, desc, rating=3 } = req.body;
+
+//     if (!title) {
+//         return res.status(400).send('Title is required');
+//     }
+//     if (!url) {
+//         return res.status(400).send('URL is required');
+//     }
+//     if (!desc) {
+//         return res.status(400).send('Description is required');
+//     }
+
+//     const id = uuid();
+
+//     const bookmark = {
+//         id,
+//         title,
+//         url,
+//         rating,
+//         desc
+//     }
+
+//     bookmarks.push(bookmark);
+
+//     res.status(201).location(`http://localhost:8000/card/${id}`).json(bookmark);
+// })
+
+// app.delete('/bookmarks/:id', (req, res) => {
+    
+//     const { id } = req.params;
+
+//     const bookmarkIndex = bookmarks.findIndex(bookmark => bookmark.id == id);
+
+//     if (bookmarkIndex === -1) {
+//         logger.error(`Bookmark ID ${id} not found for DELETE`);
+//         return res.status(404).send('Bookmark Not Found');
+//     }
+
+//     bookmarks.splice(bookmarkIndex, 1);
+
+//     res.status(204).end();
+
+// })
 
 app.use(function errorHandler(error, req, res, next) {
     let response

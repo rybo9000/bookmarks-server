@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const uuid = require('uuid/v4');
 const winston = require('winston');
+const xss = require('xss');
 const bookmarksService = require('./bookmarks_service');
 const { NODE_ENV } = require('./config');
 
@@ -35,6 +36,14 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 
+const sanitize = bookmark => ({
+    id: bookmark.id,
+    title: xss(bookmark.title),
+    url: xss(bookmark.url),
+    description: xss(bookmark.description),
+    rating: bookmark.rating
+})
+
 // AUTHORIZATION
 app.use(function authorization(req, res, next) {
     const apiToken = process.env.API_TOKEN;
@@ -57,7 +66,7 @@ app.get('/bookmarks', (req, res) => {
 
     bookmarksService.getBookmarks(knexInstance)
         .then(bookmarks => {
-            res.json(bookmarks);
+            res.json(bookmarks.map(sanitize));
         })
     
 })
@@ -70,64 +79,72 @@ app.get('/bookmarks/:id', (req, res) => {
     
     bookmarksService.getById(knexInstance, id)
         .then(bookmark => {
-            res.json(bookmark);
+            res.json({
+                id: bookmark.id,
+                title: xss(bookmark.title),
+                url: xss(bookmark.url),
+                description: xss(bookmark.description),
+                rating: bookmark.rating
+            });
         })
-    
-    // const result = bookmarks.find(bookmark => bookmark.id === Number(id));
-
-    // if (result === undefined) {
-    //     logger.error(`ID ${id} not found`);
-    //     res.status(404).json({ error: "ID Not Found" });
-    // }
-
-    // res.json(result);
 })
 
-// app.post('/bookmarks', (req, res) => {
+app.post('/bookmarks', (req, res, next) => {
     
-//     const { title, url, desc, rating=3 } = req.body;
+    const { title, url, description, rating=3 } = req.body;
 
-//     if (!title) {
-//         return res.status(400).send('Title is required');
-//     }
-//     if (!url) {
-//         return res.status(400).send('URL is required');
-//     }
-//     if (!desc) {
-//         return res.status(400).send('Description is required');
-//     }
+    const knexInstance = req.app.get('db');
 
-//     const id = uuid();
+    if (!title) {
+        return res.status(400).send('Title is required');
+    }
+    if (!url) {
+        return res.status(400).send('URL is required');
+    }
+    if (!description) {
+        return res.status(400).send('Description is required');
+    }
 
-//     const bookmark = {
-//         id,
-//         title,
-//         url,
-//         rating,
-//         desc
-//     }
+    const bookmark = {
+        title,
+        url,
+        rating,
+        description
+    }
 
-//     bookmarks.push(bookmark);
+    bookmarksService.insertBookmark(knexInstance, bookmark)
+        .then(bookmark => {
+            res.status(201).location(`/bookmarks/${bookmark.id}`).json({
+                id: bookmark.id,
+                title: xss(bookmark.title),
+                url: xss(bookmark.url),
+                description: xss(bookmark.description),
+                rating: bookmark.rating
+            })
+        })
+        .catch(next)
+})
 
-//     res.status(201).location(`http://localhost:8000/card/${id}`).json(bookmark);
-// })
-
-// app.delete('/bookmarks/:id', (req, res) => {
+app.delete('/bookmarks/:id', (req, res, next) => {
     
-//     const { id } = req.params;
+    const { id } = req.params;
 
-//     const bookmarkIndex = bookmarks.findIndex(bookmark => bookmark.id == id);
+    const knexInstance = req.app.get('db');
 
-//     if (bookmarkIndex === -1) {
-//         logger.error(`Bookmark ID ${id} not found for DELETE`);
-//         return res.status(404).send('Bookmark Not Found');
-//     }
+    bookmarksService.deleteBookmark(knexInstance, id)
+        .then((bookmark) => {
+            
+            if (!bookmark) {
+                res.status(404).json({
+                    error: 'Bookmark ID Does Not Exist!'
+                })
+            }
+            
+            res.status(204).end()
+        })
+        .catch(next)
 
-//     bookmarks.splice(bookmarkIndex, 1);
-
-//     res.status(204).end();
-
-// })
+})
 
 app.use(function errorHandler(error, req, res, next) {
     let response
